@@ -1,3 +1,36 @@
+# larval_gonad_ovary
+
+## Folders
+data
+output
+*cachedir
+rnaseq_cache
+rnaseq_files
+references
+_build
+.*
+*logs
+notebook/*_files
+notebook/*_cache
+website/content
+dask-worker-space
+figures
+tables
+
+## Files
+notebook/*.html
+*.adapters
+*.log
+*.pdf
+
+# osx
+*DS_Store*
+
+# Snakemake and Slurm
+*.snakemake
+*/slurm_logs
+*slurm-*.out
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
