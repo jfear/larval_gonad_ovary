@@ -1,0 +1,4 @@
+samplename	orig_filename	group	sample	run
+ovary1	../../../data/singleCellSeqData/run0570/SV_2_10X_Ov	ovary	SV_2_10X_Ov	run0570
+ovary2	../../../data/singleCellSeqData/180206_run0615/SV_4_10X_Ov	ovary	SV-4-10X-Ov-2	180206_run0615
+ovary3	../../../data/singleCellSeqData/180207_run0616/SV_6_10X_Ov	ovary	SV-6-10X-Ov-3	180207_run0616
