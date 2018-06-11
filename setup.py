@@ -12,7 +12,7 @@ setup(
     author="Justin M Fear",
     author_email='justin.m.fear@gmail.com',
     url='https://github.com/jfear/larval_gonad_ovary',
-    packages=['lib'],
+    packages=['larval_gonad_ovary'],
     install_requires=requirements,
     license="MIT license",
 )

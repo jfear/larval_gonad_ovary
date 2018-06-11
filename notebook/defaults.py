@@ -12,9 +12,9 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 # Project level imports
-from lib.notebook import Nb
-from lib.plotting import make_figs
-from lib.config import memory
+from larval_gonad_ovary.notebook import Nb
+from larval_gonad_ovary.plotting import make_figs
+from larval_gonad_ovary.config import memory
 
 # Setup notebook
 nbconfig = Nb.setup_notebook()
