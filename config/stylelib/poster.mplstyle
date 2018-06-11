@@ -1,0 +1,22 @@
+figure.figsize: 6.0, 6.0
+figure.titlesize: 30.0
+figure.titleweight: black
+figure.dpi: 600
+font.size: 20
+grid.linewidth: 1.6
+axes.labelsize: 20
+axes.titlesize: 28
+axes.titleweight: normal
+lines.linewidth: 3
+lines.markeredgewidth: 0.1
+lines.markersize: 12.0
+legend.fontsize: 16.0
+patch.linewidth: 2
+xtick.labelsize: 20.0
+xtick.major.pad: 11.2
+xtick.major.width: 2
+xtick.minor.width: 1
+ytick.labelsize: 20.0
+ytick.major.pad: 11.2
+ytick.major.width: 2
+ytick.minor.width: 1
