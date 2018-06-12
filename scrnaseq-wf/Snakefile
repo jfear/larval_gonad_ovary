@@ -22,6 +22,8 @@ c = RNASeqConfig(config, 'config/scrnaseq_patterns.yaml')
 # ----------------------------------------------------------------------------
 final_targets = utils.flatten((
     utils.flatten(c.targets['cellranger']['bam']),
+    utils.flatten(c.targets['cellranger_force']['bam']),
+    'scripts/scrnaseq_combine_force.html',
 ))
 
 rule targets:
@@ -68,7 +70,7 @@ rule cellranger_mkref:
 rule cellranger:
     input:
         ref = rules.cellranger_mkref.output.star,
-    output: c.patterns['cellranger']['bam']
+    output: '{sample_dir}/{sample,ovary1|ovary2|ovary3}/outs/possorted_genome_bam.bam'
     threads: 16
     resources:
         mem_gb = lambda wildcards, attempt: attempt * 25,
@@ -96,7 +98,7 @@ rule cellranger:
 rule cellranger_force:
     input:
         ref = rules.cellranger_mkref.output.star,
-    output: c.patterns['cellranger_force']['bam']
+    output: '{sample_dir}/{sample,ovary1|ovary2|ovary3}_force/outs/possorted_genome_bam.bam'
     threads: 16
     resources:
         mem_gb = lambda wildcards, attempt: attempt * 25,
@@ -120,3 +122,17 @@ rule cellranger_force:
             f'--force-cells=3000 '
         )
         shell(cmd)
+
+
+rule scrnaseq_rmarkdown:
+    """
+    Run and render the RMarkdown file that performs differential expression
+    """
+    input:
+        mtx1=utils.flatten(c.targets['cellranger_force']['filtered_h5']),
+        rmd='scripts/scrnaseq_combine_force.Rmd',
+    output:
+        'scripts/scrnaseq_combine_force.html',
+    shell:
+        'Rscript -e '
+        '''"rmarkdown::render('{input.rmd}', 'knitrBootstrap::bootstrap_document')"'''
