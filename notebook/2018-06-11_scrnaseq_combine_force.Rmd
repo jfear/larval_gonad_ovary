@@ -21,7 +21,7 @@ library(data.table)
 OUTDIR <- '../output/combined_force'
 dir.create(file.path(OUTDIR), showWarnings = FALSE)
 REFERENCES_DIR <- Sys.getenv('REFERENCES_DIR')
-params <- c(0.4, 0.6, 1.0)
+params <- c(0.4, 0.6, 1)
 
 # Get list of mitochondiral genes
 fbgn2chrom <- read.table('../output/fbgn2chrom.tsv', header=T)
@@ -29,12 +29,13 @@ fbgn2symbol <- read.csv(file.path(REFERENCES_DIR, 'dmel/r6-16/fb_annotation/dmel
 mito <- fbgn2chrom[fbgn2chrom$chrom == 'chrM', 'FBgn']
 ```
 
-```{r load.data, cache=TRUE}
+```{r load.data.func}
 print('Loading Data')
 load.data <- function(fname, name){
   print(paste0('Running: ', name))
-  # Load the 10x dataset
+
   tenX.data <- Read10X(data.dir = fname)
+
   obj <- CreateSeuratObject(
     raw.data = tenX.data,
     min.cells = 3,
@@ -52,8 +53,8 @@ load.data <- function(fname, name){
 
   obj <- FilterCells(
     object = obj,
-    subset.names = c("nGene"),
-    low.thresholds = c(200)
+    subset.names = "nGene",
+    low.thresholds = 200
   )
 
   obj <- NormalizeData(
@@ -65,11 +66,10 @@ load.data <- function(fname, name){
 
   obj <- ScaleData(
    object = obj,
-   vars.to.regress = c("nUMI"),
+   vars.to.regress = "nUMI",
    display.progress = FALSE
- )
+  )
 
-  # Find the highly variable genes
   obj <- FindVariableGenes(
     object = obj,
     do.plot = TRUE,
@@ -86,9 +86,12 @@ load.data <- function(fname, name){
   obj@cell.names <- paste(name, obj@cell.names, sep='_')
   colnames(obj@raw.data) <- paste(name, colnames(obj@raw.data), sep = "_")
   rownames(obj@meta.data) <- paste(name, rownames(obj@meta.data), sep = "_")
+
   return(obj)
 }
+```
 
+```{r load.data, cache=TRUE}
 r1 <- load.data('../scrnaseq-wf/data/scrnaseq_samples/ovary1_force/outs/filtered_gene_bc_matrices/dm6.16', 'rep1')
 r2 <- load.data('../scrnaseq-wf/data/scrnaseq_samples/ovary2_force/outs/filtered_gene_bc_matrices/dm6.16', 'rep2')
 r3 <- load.data('../scrnaseq-wf/data/scrnaseq_samples/ovary3_force/outs/filtered_gene_bc_matrices/dm6.16', 'rep3')
@@ -101,19 +104,19 @@ print('Combining Data')
 # Create list of genes to use
 g.1 <- r1@var.genes
 print(paste0('variable genes rep 1: ', length(g.1)))
-# n = 576
+# n = 784
 
 g.2 <- r2@var.genes
 print(paste0('variable genes rep 2: ', length(g.2)))
-# n = 494
+# n = 501
 
 g.3 <- r3@var.genes
 print(paste0('variable genes rep 3: ', length(g.3)))
-# n = 330
+# n = 399
 
 genes.use <- intersect(intersect(g.1, g.2), g.3)
 print(paste0('variable genes intersection: ', length(genes.use)))
-# n = 108
+# n = 104
 ```
 
 ```{r combine, cache=TRUE}
@@ -194,7 +197,7 @@ plot_grid(title, p, ncol=1, rel_heights=c(0.1, 1)) # rel_heights values control 
 ```
 
 ```{r}
-combined <- SetAllIdent(combined, id  = 'res.1.0')
+combined <- SetAllIdent(combined, id  = 'res.1')
 p1 <- TSNEPlot(combined, do.return = T, pt.size = 0.5, group.by = "rep")
 p2 <- TSNEPlot(combined, do.label = T, do.return = T, pt.size = 0.5)
 p <- plot_grid(p1, p2)
@@ -204,15 +207,15 @@ plot_grid(title, p, ncol=1, rel_heights=c(0.1, 1)) # rel_heights values control 
 
 ## Save Results
 
-```{r}
+```{r, dump.seurat}
 print('Dumping Seurat Object')
 dump_seurat(object = combined, dir = OUTDIR)
 ```
 
-```{r}
+```{r, save.biomarkers}
 print('Saving Biomarkers')
 # Save cluster info
-for (i in c(0.4, 1.0)) {
+for (i in params) {
   name <- paste0('res.', i)
   combined <- SetAllIdent(combined, id = name)
 
