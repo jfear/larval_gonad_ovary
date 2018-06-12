@@ -46,6 +46,7 @@ r-knitrbootstrap
 r-pheatmap
 r-readr
 r-rmarkdown
+r-seurat
 r-spp
 r-upsetr
 salmon
