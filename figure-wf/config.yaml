@@ -1,0 +1,5 @@
+seurat_dir: '../scrnaseq-wf/data/scrnaseq_combine_force'
+styles:
+ - paper
+resolution: 'res.0.6'
+alpha: 0.001
