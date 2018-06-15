@@ -207,12 +207,12 @@ plot_grid(title, p, ncol=1, rel_heights=c(0.1, 1)) # rel_heights values control 
 
 ## Save Results
 
-```{r, dump.seurat}
+```{r dump.seurat}
 print('Dumping Seurat Object')
 dump_seurat(object = combined, dir = OUTDIR)
 ```
 
-```{r, save.biomarkers}
+```{r save.biomarkers}
 print('Saving Biomarkers')
 # Save cluster info
 for (i in params) {
