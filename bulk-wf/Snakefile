@@ -43,7 +43,8 @@ final_targets = utils.flatten((
     utils.flatten(c.targets['rseqc']),
     utils.flatten(c.targets['collectrnaseqmetrics']),
     utils.flatten(c.targets['bigwig']),
-    utils.flatten(c.targets['downstream']),
+#     utils.flatten(c.targets['downstream']),
+    'data/gene_lengths.tsv',
 ))
 
 if 'merged_bigwigs' in config:
@@ -67,7 +68,7 @@ if 'orig_filename' in c.sampletable.columns:
         Symlinks files over from original filename
         """
         input: [_st.loc[sample, 'orig_filename']  for sample in _st.index ]
-        output: [c.patterns['fastq'].format(sample=sample, sample_dir=c.sample_dir) for sample in _st.index]
+        output: [c.patterns['fastq'].format(sample=sample, sample_dir='data/rnaseq_samples') for sample in _st.index]
         resources:
             mem_gb = lambda wildcards, attempt: attempt * 1,
             time_hr = lambda wildcards, attempt: attempt * 1
@@ -127,10 +128,10 @@ rule fastqc:
     """
     Run FastQC
     """
-    input: '{sample_dir}/{sample}/{sample}{suffix}'
+    input: 'data/rnaseq_samples/{sample}/{sample}{suffix}'
     output:
-        html='{sample_dir}/{sample}/fastqc/{sample}{suffix}_fastqc.html',
-        zip='{sample_dir}/{sample}/fastqc/{sample}{suffix}_fastqc.zip',
+        html='data/rnaseq_samples/{sample}/fastqc/{sample}{suffix}_fastqc.html',
+        zip='data/rnaseq_samples/{sample}/fastqc/{sample}{suffix}_fastqc.zip',
     resources:
         mem_gb = lambda wildcards, attempt: attempt * 1,
         time_hr = lambda wildcards, attempt: attempt * 2
@@ -141,7 +142,7 @@ rule fastqc:
 rule hisat2_splice_site:
     """Generate splicesite information from known annotations."""
     input:
-        gtf=c.refdict[c.assembly][config['gtf']['tag']]['gtf']
+        gtf=c.refdict[c.organism][config['gtf']['tag']]['gtf']
     output: c.patterns['splice_sites']
     resources:
       mem_gb=lambda wildcards, attempt: attempt * 1,
@@ -155,7 +156,7 @@ rule hisat2:
     """
     input:
         fastq=rules.cutadapt.output.fastq,
-        index=[c.refdict[c.assembly][config['aligner']['tag']]['hisat2']]
+        index=[c.refdict[c.organism][config['aligner']['tag']]['hisat2']]
     output:
         bam=c.patterns['bam']
     log:
@@ -178,7 +179,7 @@ rule rRNA:
     """
     input:
         fastq=rules.cutadapt.output.fastq,
-        index=[c.refdict[c.assembly][config['rrna']['tag']]['bowtie2']]
+        index=[c.refdict[c.organism][config['rrna']['tag']]['bowtie2']]
     output:
         bam=c.patterns['rrna']['bam']
     log:
@@ -198,9 +199,9 @@ rule fastq_count:
     Count reads in a FASTQ file
     """
     input:
-        fastq='{sample_dir}/{sample}/{sample}{suffix}.fastq.gz'
+        fastq='data/rnaseq_samples/{sample}/{sample}{suffix}.fastq.gz'
     output:
-        count='{sample_dir}/{sample}/{sample}{suffix}.fastq.gz.libsize'
+        count='data/rnaseq_samples/{sample}/{sample}{suffix}.fastq.gz.libsize'
     resources:
         mem_gb = lambda wildcards, attempt: attempt * 1,
         time_hr = lambda wildcards, attempt: attempt * 2
@@ -213,9 +214,9 @@ rule bam_count:
     Count reads in a BAM file
     """
     input:
-        bam='{sample_dir}/{sample}/{suffix}.bam'
+        bam='data/rnaseq_samples/{sample}/{suffix}.bam'
     output:
-        count='{sample_dir}/{sample}/{suffix}.bam.libsize'
+        count='data/rnaseq_samples/{sample}/{suffix}.bam.libsize'
     resources:
         mem_gb = lambda wildcards, attempt: attempt * 1,
         time_hr = lambda wildcards, attempt: attempt * 2
@@ -246,7 +247,7 @@ rule fastq_screen:
     input:
         fastq=rules.cutadapt.output.fastq,
         dm6=c.refdict['dmel'][config['aligner']['tag']]['bowtie2'],
-        rRNA=c.refdict[c.assembly][config['rrna']['tag']]['bowtie2'],
+        rRNA=c.refdict[c.organism][config['rrna']['tag']]['bowtie2'],
         phix=c.refdict['phix']['default']['bowtie2'],
         ercc=refdict['ercc']['srm2374']['bowtie2'],
         hg19=refdict['human']['gencode-v19']['bowtie2'],
@@ -270,12 +271,12 @@ rule featurecounts:
     Count reads in annotations with featureCounts from the subread package
     """
     input:
-        annotation=c.refdict[c.assembly][config['gtf']['tag']]['gtf'],
+        annotation=c.refdict[c.organism][config['gtf']['tag']]['gtf'],
         bam=rules.hisat2.output
     output:
-        counts='{sample_dir}/{sample}/{sample}.cutadapt.bam.featurecounts.{stranded,s0|s1|s2}.txt'
+        counts='data/rnaseq_samples/{sample}/{sample}.cutadapt.bam.featurecounts.{stranded,s0|s1|s2}.txt'
     log:
-        '{sample_dir}/{sample}/{sample}.cutadapt.bam.featurecounts.{stranded}.txt.log'
+        'data/rnaseq_samples/{sample}/{sample}.cutadapt.bam.featurecounts.{stranded}.txt.log'
     resources:
         mem_gb = lambda wildcards, attempt: attempt * 1,
         time_hr = lambda wildcards, attempt: attempt * 2
@@ -420,7 +421,7 @@ rule multiqc:
         config='config/multiqc_config.yaml'
     output: c.targets['multiqc']
     params:
-        analysis_directory=" ".join([c.sample_dir, c.agg_dir]),
+        analysis_directory=" ".join([config['sample_dir'], config['aggregation_dir']]),
         extra='--config config/multiqc_config.yaml',
         outdir=os.path.dirname(c.targets['multiqc'][0]),
         basename=os.path.basename(c.targets['multiqc'][0])
@@ -472,7 +473,7 @@ rule collectrnaseqmetrics:
     """
     input:
         bam=c.patterns['bam'],
-        refflat=c.refdict[c.assembly][config['gtf']['tag']]['refflat']
+        refflat=c.refdict[c.organism][config['gtf']['tag']]['refflat']
     output:
         metrics=c.patterns['collectrnaseqmetrics']['metrics'],
         pdf=c.patterns['collectrnaseqmetrics']['pdf']
@@ -518,7 +519,7 @@ rule dupRadar:
     """
     input:
         bam=rules.markduplicates.output.bam,
-        annotation=c.refdict[c.assembly][config['gtf']['tag']]['gtf'],
+        annotation=c.refdict[c.organism][config['gtf']['tag']]['gtf'],
     output:
         density_scatter=c.patterns['dupradar']['density_scatter'],
         expression_histogram=c.patterns['dupradar']['expression_histogram'],
@@ -528,7 +529,7 @@ rule dupRadar:
         dataframe=c.patterns['dupradar']['dataframe'],
         model=c.patterns['dupradar']['model'],
         curve=c.patterns['dupradar']['curve'],
-    log: '{sample_dir}/{sample}/dupradar/dupradar.log'
+    log: 'data/rnaseq_samples/{sample}/dupradar/dupradar.log'
     resources:
         mem_gb = lambda wildcards, attempt: attempt * 1,
         time_hr = lambda wildcards, attempt: attempt * 2
@@ -542,11 +543,11 @@ rule salmon:
     """
     input:
         fastq=c.patterns['cutadapt'],
-        index=c.refdict[c.assembly][config['salmon']['tag']]['salmon'],
+        index=c.refdict[c.organism][config['salmon']['tag']]['salmon'],
     output:
         c.patterns['salmon']
     params:
-        index_dir=os.path.dirname(c.refdict[c.assembly][config['salmon']['tag']]['salmon']),
+        index_dir=os.path.dirname(c.refdict[c.organism][config['salmon']['tag']]['salmon']),
         outdir=os.path.dirname(c.patterns['salmon'])
     log:
         c.patterns['salmon'] + '.log'
@@ -678,7 +679,7 @@ rule rnaseq_rmarkdown:
 
 rule intergenic:
     input:
-        db=c.refdict[c.assembly][config['db']['tag']]['gtf'] + '.db'
+        db=c.refdict[c.organism][config['db']['tag']]['gtf'] + '.db'
     output:
         bed=c.patterns['intergenic']['bed'],
         gtf=c.patterns['intergenic']['gtf']
@@ -723,9 +724,9 @@ rule featurecounts_intergenic:
         annotation=c.patterns['intergenic']['gtf'],
         bam=rules.hisat2.output
     output:
-        counts='{sample_dir}/{sample}/{sample}.cutadapt.bam.featurecounts.intergenic.{stranded,s0|s1|s2}.txt'
+        counts='data/rnaseq_samples/{sample}/{sample}.cutadapt.bam.featurecounts.intergenic.{stranded,s0|s1|s2}.txt'
     log:
-        '{sample_dir}/{sample}/{sample}.cutadapt.bam.featurecounts.intergenic.{stranded}.txt.log'
+        'data/rnaseq_samples/{sample}/{sample}.cutadapt.bam.featurecounts.intergenic.{stranded}.txt.log'
     resources:
         mem_gb = lambda wildcards, attempt: attempt * 1,
         time_hr = lambda wildcards, attempt: attempt * 2
@@ -737,6 +738,7 @@ rule featurecounts_intergenic:
         '-o {output.counts} '
         '{input.bam} '
         '&> {log}'
+
 
 def bigwigs_to_merge(wc):
     chunk = config['merged_bigwigs'][wc.merged_bigwig_label]
@@ -753,6 +755,7 @@ def bigwigs_to_merge(wc):
         sample=antisense_labels)
     return sense_bigwigs + antisense_bigwigs
 
+
 if 'merged_bigwigs' in config:
     rule merge_bigwigs:
         """
@@ -761,7 +764,7 @@ if 'merged_bigwigs' in config:
         """
         input:
             bigwigs=bigwigs_to_merge,
-            chromsizes=refdict[c.assembly][config['aligner']['tag']]['chromsizes'],
+            chromsizes=refdict[c.organism][config['aligner']['tag']]['chromsizes'],
         output:
             c.patterns['merged_bigwig']
         resources:
@@ -769,6 +772,17 @@ if 'merged_bigwigs' in config:
             time_hr = lambda wildcards, attempt: attempt * 2
         wrapper:
             wrapper_for('average-bigwigs')
+
+
+rule gene_lengths:
+    input: 'data/rnaseq_samples/A5_OF/A5_OF.cutadapt.bam.featurecounts.s1.txt'
+    output: 'data/gene_lengths.tsv'
+    run:
+        import pandas as pd
+        df = pd.read_csv(input[0], comment='#', sep='\t', usecols=[0, 5])
+        df.columns = ['FBgn', 'gene_length']
+        df.set_index('FBgn', inplace=True)
+        df.to_csv(output[0], sep='\t')
 
 # vim: ft=snakemake.python
 # vim: foldmethod=indent
