@@ -13,8 +13,11 @@ sample_dir: 'data/scrnaseq_samples'
 # Directory to contain reports and other aggregations
 aggregation_dir: 'data/aggregation'
 
+# The optimal resolution used by Seurat for clustering
+resolution: 'res.0.4'
+
 # Which key in the `references` dict below to use
-assembly: 'dmel'
+organism: 'dmel'
 
 # If not specified here, use the environment variable REFERENCES_DIR.
 references_dir: 'references_data'
