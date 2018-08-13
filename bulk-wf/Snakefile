@@ -784,5 +784,25 @@ rule gene_lengths:
         df.set_index('FBgn', inplace=True)
         df.to_csv(output[0], sep='\t')
 
+
+rule aggregate_feature_counts:
+    input: c.targets['featurecounts']['s2']
+    output: 'data/aggregation/featurecounts.parquet'
+    script: 'scripts/aggregate_feature_counts.py'
+
+
+rule tpm:
+    input: rules.aggregate_feature_counts.output[0], rules.gene_lengths.output
+    output: 'data/tpm.parquet'
+    run:
+        import pandas as pd
+        from larval_gonad_ovary.normalization import tpm
+        dat = pd.read_parquet(input[0])
+        gene_lengths = pd.read_csv(input[1], sep='\t', index_col=0)
+        gene_lengths = gene_lengths.reindex(dat.index).gene_length
+        norm = tpm(dat, gene_lengths)
+        norm.to_parquet(output[0])
+
+
 # vim: ft=snakemake.python
 # vim: foldmethod=indent
