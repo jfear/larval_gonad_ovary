@@ -6,6 +6,6 @@ notebook
 numpy
 pandas
 pysam
-tables
+pytables
 scipy
 seaborn
