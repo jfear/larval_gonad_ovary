@@ -4,20 +4,11 @@
 # First column must have header name "samplename".
 sampletable: 'config/sampletable.tsv'
 
-# sample_dir: directory in which each sample is expected to have its own
-# directory and fastq file[s]. If `sampletable` lists a sample with samplename
-# SAMPLE1, then at least the file $sample_dir/SAMPLE1/SAMPLE1_R1.fastq.gz is
-# expected.
-sample_dir: 'data/scrnaseq_samples'
-
-# Directory to contain reports and other aggregations
-aggregation_dir: 'data/aggregation'
+# Which key in the `references` dict below to use
+organism: 'dmel'
 
 # The optimal resolution used by Seurat for clustering
 resolution: 'res.0.4'
-
-# Which key in the `references` dict below to use
-organism: 'dmel'
 
 # If not specified here, use the environment variable REFERENCES_DIR.
 references_dir: 'references_data'
@@ -26,7 +17,6 @@ gtf:
   tag: "r6-16"
 
 references:
-
   dmel:
     rRNA:
       fasta:
@@ -59,9 +49,9 @@ references:
           - genelist:
               gene_id: 'gene_id'
 
-          - annotation_hub:
-              ahkey: 'AH49581'
-              keytype: 'ENSEMBL'
+#          - annotation_hub:
+#              ahkey: 'AH49581'
+#              keytype: 'ENSEMBL'
 
       fb_annotation:
         url: 'ftp://ftp.flybase.net/releases/FB2017_03/precomputed_files/genes/fbgn_annotation_ID.tsv.gz'

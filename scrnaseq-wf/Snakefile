@@ -163,20 +163,7 @@ rule split_clusters:
     output:
         res4=c.targets['parquet']['clusters4'],
         res6=c.targets['parquet']['clusters6'],
-    run:
-        import pandas as pd
-        df = pd.read_parquet(input[0])
-
-        def pop(df, res):
-            res = df[res]
-            res.name = 'cluster'
-            return res.to_frame()
-
-        res4 = pop(df, 'res.0.4')
-        res4.to_parquet(output.res4)
-
-        res6 = pop(df, 'res.0.6')
-        res6.to_parquet(output.res6)
+    script: 'scripts/split_clusters.py'
 
 
 rule gene_lengths:
@@ -191,46 +178,25 @@ rule gene_lengths:
 rule cpm:
     input: c.targets['parquet']['raw']
     output: c.targets['normalized']['cpm']
-    run:
-        from larval_gonad_ovary.normalization import cpm
-        raw = pd.read_parquet(input[0])
-        norm = cpm(raw)
-        norm.to_parquet(output[0])
+    script: 'scripts/cpm.py'
 
 
 rule tpm:
     input: c.targets['parquet']['raw'], rules.gene_lengths.output
     output: c.targets['normalized']['tpm']
-    run:
-        import pandas as pd
-        from larval_gonad_ovary.normalization import tpm
-        raw = pd.read_parquet(input[0])
-        gene_lengths = pd.read_parquet(input[1]).reindex(raw.index).gene_length
-        norm = tpm(raw, gene_lengths)
-        norm.to_parquet(output[0])
+    script: 'scripts/tpm.py'
 
 
 rule rpkm:
     input: c.targets['parquet']['raw'], rules.gene_lengths.output
     output: c.targets['normalized']['rpkm']
-    run:
-        import pandas as pd
-        from larval_gonad_ovary.normalization import rpkm
-        raw = pd.read_parquet(input[0])
-        gene_lengths = pd.read_parquet(input[1]).reindex(raw.index).gene_length
-        norm = rpkm(raw, gene_lengths)
-        norm.to_parquet(output[0])
+    script: 'scripts/rpkm.py'
 
 
 rule zscore_tpm:
     input: '../output/scrnaseq-wf/{fname}.parquet'
     output: '../output/scrnaseq-wf/zscore_{fname}.parquet'
-    run:
-        import pandas as pd
-        from larval_gonad_ovary.normalization import zscore
-        df = pd.read_parquet(input[0])
-        norm = zscore(df)
-        norm.to_parquet(output[0])
+    script: 'scripts/zscore_tpm.py'
 
 
 rule tpm_by_cluster:
@@ -238,13 +204,7 @@ rule tpm_by_cluster:
         tpm=rules.tpm.output,
         cluster=rules.split_clusters.output.res4
     output: c.targets['normalized']['tpm_res4']
-    run:
-        import pandas as pd
-        tpm = pd.read_parquet(input.tpm)
-        clusters = pd.read_parquet(input.cluster)
-        tpm_cluster = tpm.T.join(clusters).groupby('cluster').sum().T
-        tpm_cluster.columns = [f'clus{x}' for x in tpm_cluster.columns]
-        tpm_cluster.to_parquet(output[0])
+    script: 'scripts/tpm_by_cluster.py'
 
 
 rule raw_by_cluster:
@@ -252,10 +212,4 @@ rule raw_by_cluster:
         raw=c.targets['parquet']['raw'],
         cluster=rules.split_clusters.output.res4
     output: c.targets['normalized']['raw_res4']
-    run:
-        import pandas as pd
-        raw = pd.read_parquet(input.raw)
-        clusters = pd.read_parquet(input.cluster)
-        raw_cluster = raw.T.join(clusters).groupby('cluster').sum().T
-        raw_cluster.columns = [f'clus{x}' for x in raw_cluster.columns]
-        raw_cluster.to_parquet(output[0])
+    script: 'scripts/raw_by_cluster.py'

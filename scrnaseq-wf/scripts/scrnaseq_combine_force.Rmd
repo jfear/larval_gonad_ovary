@@ -15,9 +15,10 @@ knitr::opts_chunk$set(
   )
 
 # Uncomment if running interactively
-#knitr::opts_knit$set(
+knitr::opts_knit$set(
 #  root.dir = '/home/fearjm/Deploy/larval_gonad_ovary/scrnaseq-wf'
-#)
+  root.dir = '../'
+)
 ```
 
 
