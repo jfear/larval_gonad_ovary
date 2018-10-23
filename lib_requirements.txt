@@ -6,6 +6,8 @@ notebook
 numpy
 pandas
 pysam
-pytables
+tables
 scipy
 seaborn
+fastparquet
+python-snappy
