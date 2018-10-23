@@ -4,27 +4,38 @@ author: Justin Fear
 date: 'Compiled: `r format(Sys.Date(), "%B %d, %Y")`'
 ---
 
-```{r, include=FALSE}
-knitr::opts_chunk$set(collapse=TRUE, warning=FALSE, message=FALSE,
-                      bootstrap.show.code=FALSE, bootstrap.show.output=FALSE,
-                      fig.ext='png')
+```{r setup, include=FALSE, cache=FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  bootstrap.show.code = FALSE,
+  bootstrap.show.output = FALSE,
+  fig.ext = 'png'
+  )
+
+# Uncomment if running interactively
+#knitr::opts_knit$set(
+#  root.dir = '/home/fearjm/Deploy/larval_gonad_ovary/scrnaseq-wf'
+#)
 ```
 
-```{r setup}
+
+```{r prep}
 options(repr.plot.width=10, repr.plot.height=10)
-source('../../lib/seurat.R')
+source('../lib/seurat.R')
 library(Seurat)
 library(dplyr)
 library(Matrix)
 library(data.table)
 
-OUTDIR <- '../data/scrnaseq_combine_force'
+OUTDIR <- '../output/scrnaseq-wf/scrnaseq_combine_force'
 dir.create(file.path(OUTDIR), showWarnings = FALSE)
-REFERENCES_DIR <- Sys.getenv('REFERENCES_DIR')
+REFERENCES_DIR <- Sys.getenv('REFERENCES_DIR', '/data/LCDB/lcdb-references')
 params <- c(0.4, 0.6, 1)
 
 # Get list of mitochondiral genes
-fbgn2chrom <- read.table('../../output/fbgn2chrom.tsv', header=T)
+fbgn2chrom <- read.table('../output/fbgn2chrom.tsv', header=T)
 fbgn2symbol <- read.csv(file.path(REFERENCES_DIR, 'dmel/r6-16/fb_annotation/dmel_r6-16.fb_annotation'), header=T, sep = '\t')[, c('gene_symbol', 'primary_FBgn')]
 mito <- fbgn2chrom[fbgn2chrom$chrom == 'chrM', 'FBgn']
 ```
@@ -36,6 +47,8 @@ load.data <- function(fname, name){
 
   tenX.data <- Read10X(data.dir = fname)
 
+  # Create the Seurat object, require a gene to be in ≥3 cells, and a cell to
+  # have ≥200 genes.
   obj <- CreateSeuratObject(
     raw.data = tenX.data,
     min.cells = 3,
@@ -51,6 +64,7 @@ load.data <- function(fname, name){
     nCol = 2,
   )
 
+  # This should do nothing
   obj <- FilterCells(
     object = obj,
     subset.names = "nGene",
@@ -64,25 +78,30 @@ load.data <- function(fname, name){
     display.progress = FALSE
   )
 
+  # Remove nUMI affects
   obj <- ScaleData(
    object = obj,
    vars.to.regress = "nUMI",
    display.progress = FALSE
  )
 
+  # Identify variable genes while controling for the relationship b/t
+  # variability and expression level.
   obj <- FindVariableGenes(
     object = obj,
     do.plot = TRUE,
     display.progress = FALSE
   )
 
+  # I prefer working in python so pull out the different parts of the seurat
+  # object and save.
   dispersion <- as.data.frame(as.matrix(obj@hvg.info))
   write.table(dispersion, file = file.path(OUTDIR, paste0(name, '_dispersion.tsv')), quote = FALSE, sep = "\t", row.names = TRUE, col.names = TRUE)
 
   var.genes <- as.data.frame(as.matrix(obj@var.genes))
   write.table(var.genes, file = file.path(OUTDIR, paste0(name, '_var_genes.tsv')), quote = FALSE, sep = "\t", row.names = TRUE, col.names = TRUE)
 
-  # Rename cells incase they overlap between replicates
+  # Add replicate prefix to make cells unique when merging reps.
   obj@cell.names <- paste(name, obj@cell.names, sep='_')
   colnames(obj@raw.data) <- paste(name, colnames(obj@raw.data), sep = "_")
   rownames(obj@meta.data) <- paste(name, rownames(obj@meta.data), sep = "_")
@@ -92,12 +111,14 @@ load.data <- function(fname, name){
 ```
 
 ```{r load.data, cache=TRUE}
-r1 <- load.data('../data/scrnaseq_samples/ovary1_force/outs/filtered_gene_bc_matrices/dm6.16', 'rep1')
-r2 <- load.data('../data/scrnaseq_samples/ovary2_force/outs/filtered_gene_bc_matrices/dm6.16', 'rep2')
-r3 <- load.data('../data/scrnaseq_samples/ovary3_force/outs/filtered_gene_bc_matrices/dm6.16', 'rep3')
+r1 <- load.data('../output/scrnaseq-wf/scrnaseq_samples/ovary1_force/outs/filtered_gene_bc_matrices/dm6.16', 'rep1')
+r2 <- load.data('../output/scrnaseq-wf/scrnaseq_samples/ovary2_force/outs/filtered_gene_bc_matrices/dm6.16', 'rep2')
+r3 <- load.data('../output/scrnaseq-wf/scrnaseq_samples/ovary3_force/outs/filtered_gene_bc_matrices/dm6.16', 'rep3')
 ```
 
 ## Combined Data
+
+CCA requires a list of highly variable genes. Here I pull out variable genes from each replicate and then identify genes that are in common.
 
 ```{r var.genes}
 print('Combining Data')
@@ -118,6 +139,8 @@ genes.use <- intersect(intersect(g.1, g.2), g.3)
 print(paste0('variable genes intersection: ', length(genes.use)))
 # n = 104
 ```
+
+Run CCA and get diagnostics out.
 
 ```{r combine, cache=TRUE}
 combined <- RunMultiCCA(
@@ -145,7 +168,6 @@ MetageneBicorPlot(
 )
 ```
 
-
 ```{r}
 p1 <- DimPlot(object=combined, reduction.use='cca', group.by='rep', pt.size=0.5, do.return=TRUE)
 p2 <- VlnPlot(object=combined, features.plot='CC1', group.by='rep', do.return=TRUE)
@@ -160,7 +182,8 @@ combined <- AlignSubspace(
         combined,
         reduction.type = "cca",
         grouping.var = "rep",
-        dims.align = 1:25
+        dims.align = 1:25,
+        verbose = FALSE
         )
 ```
 
@@ -175,7 +198,9 @@ plot_grid(p1, p2)
 ```{r, cache=TRUE}
 print('Building Clusters')
 combined <- RunTSNE(combined, reduction.use = "cca.aligned", dims.use = 1:25, do.fast = T)
-combined <- FindClusters(combined, reduction.type = "cca.aligned", resolution = params, dims.use = 1:25)
+
+# Here is where we actually call clusters
+combined <- FindClusters(combined, reduction.type = "cca.aligned", resolution = params, dims.use = 1:25, print.output = FALSE)
 ```
 
 ```{r}
