@@ -13,6 +13,7 @@ cellranger_force:
   filtered_h5: 'data/scrnaseq_samples/{sample}_force/outs/filtered_gene_bc_matrices_h5.h5'
   bam: 'data/scrnaseq_samples/{sample}_force/outs/possorted_genome_bam.bam'
   bai: 'data/scrnaseq_samples/{sample}_force/outs/possorted_genome_bam.bam.bai'
+  agg: 'data/scrnaseq_samples/ovary_force_agg/outs/filtered_gene_bc_matrices_h5.h5'
 
 parquet:
   raw: 'data/raw.parquet'

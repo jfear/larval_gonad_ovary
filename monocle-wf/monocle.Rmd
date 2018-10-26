@@ -1,0 +1,150 @@
+---
+title: Initial Monocle Pseudotime Analysis
+author: Justin Fear
+date: 'Compiled: `r format(Sys.Date(), "%B %d, %Y")`'
+---
+
+```{r, include=FALSE}
+knitr::opts_chunk$set(collapse=TRUE, warning=FALSE, message=FALSE, cache.lazy=FALSE,
+                      bootstrap.show.code=FALSE, bootstrap.show.output=FALSE,
+                      fig.ext='png')
+```
+
+```{r setup}
+options(repr.plot.width=10, repr.plot.height=10)
+library('monocle')
+library('tibble')
+library('dplyr')
+library('tidyr')
+library('cellrangerRkit')
+```
+
+```{r, get.gene.annot}
+# create a dataframe with FBgn to gene symbol
+genes <- read.table('/data/LCDB/lcdb-references/dmel/r6-16/fb_annotation/dmel_r6-16.fb_annotation',
+		    sep='\t',
+		    stringsAsFactors=F,
+		    header=T,
+		    quote=NULL,
+		    colClasses=c(rep("character", 2), rep("NULL", 3))
+		    )
+colnames(genes) <- c('gene_short_name', 'FBgn')
+```
+
+```{r load.cellranger}
+# Load cell ranger data
+# NOTE: gives a warning about loading a CSV for normalization.
+cellranger_pipestance_path <- "../scrnaseq-wf/data/scrnaseq_samples/ovary_force_agg"
+gbm <- load_cellranger_matrix(cellranger_pipestance_path)
+
+# Add gene names to feature annotations
+fd <- fData(gbm)
+fdm <- left_join(fd, genes, by=c('id' = 'FBgn'))
+row.names(fdm) <- fdm$id
+
+# Add replicate to sample data
+pdm <- pData(gbm)
+pdm$rep <- separate(pdm, col = 'barcode', into=c('bc', 'rep'), by='-')$rep
+
+# Build cell data object
+dds <- newCellDataSet(
+	      exprs(gbm),
+	      phenoData = new("AnnotatedDataFrame", data = pdm),
+	      featureData = new("AnnotatedDataFrame", data = fdm),
+	      lowerDetectionLimit = 0.5,
+	      expressionFamily = negbinomial.size()
+	  )
+```
+
+```{r estimate.dispersion}
+# Detect expressed genes and normalize
+dds <- estimateSizeFactors(dds)
+
+# NOTE: gives a warning about failing for glm to converge
+dds <- estimateDispersions(dds)
+```
+
+```{r filter.low}
+dds <- detectGenes(dds, min_expr=0.1)
+expressed_genes <- row.names(subset(fData(dds), num_cells_expressed >= 10))
+```
+
+```{r classify}
+disp_table <- dispersionTable(dds)
+unsup_clustering_genes <- subset(disp_table, mean_expression >= 0.1)
+dds <- setOrderingFilter(dds, unsup_clustering_genes$gene_id)
+plot_ordering_genes(dds)
+```
+
+```{r plot.components}
+plot_pc_variance_explained(dds, return_all=F)
+```
+
+```{r reduce.dim}
+# Reduce dims after removing rep effects.
+dds <- reduceDimension(
+	       dds,
+	       max_components = 2,
+	       num_dim = 6,
+	       reduction_method = 'tSNE',
+	       residualModelFormulaStr = "~rep + num_genes_expressed",
+	       verbose = T
+	)
+
+dds <- clusterCells(dds, num_clusters = 10)
+plot_cell_clusters(dds, 1, 2, color = "Cluster")
+```
+
+## Trajectory
+
+```{r deg.select.for.order}
+# Create a list of genes for ordering trajectory.
+# (1) Filter genes in a few cells
+# (2) run the differential expression analysis
+# (3) selecte significant genes for use as ordering
+# (4) filter genes not in this list.
+diff_test_res <- differentialGeneTest(dds[expressed_genes,], fullModelFormulaStr = "~Cluster")
+ordering_genes = row.names(subset(diff_test_res, qval < 0.01))
+dds_order = setOrderingFilter(dds, ordering_genes)
+plot_ordering_genes(dds_order)
+```
+
+```{r order.cells}
+dds_order <- reduceDimension(dds_order, max_components = 2, method = 'DDRTree')
+dds_order <- orderCells(dds_order)
+```
+```{r plot.trajectory}
+png('data/rough_trajectory.png', width = 1600, height = 1600, res = 150)
+plot_cell_trajectory(dds_order, color_by = 'Cluster')
+dev.off()
+```
+
+```{r output}
+save(dds_order, file = 'data/monocle.Robj')
+load('data/monocle.Robj')
+```
+
+```{r dump.obj}
+# Save useful data for python plotting
+
+# Cell location
+cell.loc <- t(reducedDimS(dds_order))
+colnames(cell.loc) <- c('C1', 'C2')
+cell.loc <- as.data.frame(cell.loc) %>% tibble::rownames_to_column('cell_id')
+write.table(cell.loc, file = 'data/cell_location.tsv', sep = '\t', quote = F, row.names = F)
+
+# Tree location
+tree.loc <- t(reducedDimK(dds_order))
+colnames(tree.loc) <- c('C1', 'C2')
+tree.loc <- as.data.frame(tree.loc) %>% tibble::rownames_to_column('tree_id')
+write.table(tree.loc, file = 'data/tree_location.tsv', sep = '\t', quote = F, row.names = F)
+
+branch.point <- dds_order@auxOrderingData[['DDRTree']]$branch_points
+write(branch.point, file = 'data/branch_points.txt', sep = '\n')
+
+metadata <- pData(dds_order)[c('Size_Factor', 'num_genes_expressed', 'Pseudotime', 'State')]
+metadata <- as.data.frame(metadata) %>% tibble::rownames_to_column('cell_id')
+write.table(metadata, file = 'data/pseudotime.tsv', sep = '\t', quote = F, row.names = F)
+
+```
+

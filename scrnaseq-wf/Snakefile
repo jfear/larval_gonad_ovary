@@ -23,9 +23,11 @@ c = RNASeqConfig(config, 'config/scrnaseq_patterns.yaml')
 final_targets = utils.flatten((
     utils.flatten(c.targets['cellranger']['bam']),
     utils.flatten(c.targets['cellranger_force']['bam']),
+    utils.flatten(c.targets['cellranger_force']['agg']),
     utils.flatten(c.targets['parquet']),
     utils.flatten(c.targets['normalized']),
     'scripts/scrnaseq_combine_force.html',
+    'data/scrnaseq_samples/ovary_force.csv'
 ))
 
 rule targets:
@@ -100,7 +102,9 @@ rule cellranger:
 rule cellranger_force:
     input:
         ref = rules.cellranger_mkref.output.star,
-    output: '{sample_dir}/{sample,ovary1|ovary2|ovary3}_force/outs/possorted_genome_bam.bam'
+    output:
+        bam='{sample_dir}/{sample,ovary1|ovary2|ovary3}_force/outs/possorted_genome_bam.bam',
+        mol='{sample_dir}/{sample,ovary1|ovary2|ovary3}_force/outs/molecule_info.h5',
     threads: 16
     resources:
         mem_gb = lambda wildcards, attempt: attempt * 25,
@@ -124,6 +128,39 @@ rule cellranger_force:
             f'--force-cells=3000 '
         )
         shell(cmd)
+
+
+rule cellranger_agg_csv:
+    input: expand('data/scrnaseq_samples/{sample}_force/outs/molecule_info.h5', sample=['ovary1', 'ovary2', 'ovary3'])
+    output: 'data/scrnaseq_samples/ovary_force.csv'
+    run:
+        dat = dict(library_id=['ovary1_force', 'ovary2_force', 'ovary3_force'],
+                   molecule_h5=['data/scrnaseq_samples/ovary1_force/outs/molecule_info.h5',
+                                'data/scrnaseq_samples/ovary2_force/outs/molecule_info.h5',
+                                'data/scrnaseq_samples/ovary3_force/outs/molecule_info.h5',
+                               ])
+
+        df = pd.DataFrame(dat)
+        df.to_csv(output[0], index=False)
+
+
+rule cellranger_aggr:
+    input: rules.cellranger_agg_csv.output[0]
+    output: 'data/scrnaseq_samples/ovary_force_agg/outs/filtered_gene_bc_matrices_h5.h5'
+    threads: 2
+    resources:
+        mem_gb = lambda wildcards, attempt: attempt * 6,
+        time_hr = lambda wildcards, attempt: attempt * 4
+    shell:
+        'module load cellranger/2.1.1 && '
+        'cd data/scrnaseq_samples && '
+        'rm -rf ovary_force_agg &&'
+        'cellranger aggr '
+        '--id=ovary_force_agg '
+        '--csv=ovary_force.csv '
+        '--normalize=mapped '
+        '--localcores={threads} '
+        '--localmem={resources.mem_gb} '
 
 
 rule scrnaseq_rmarkdown:
@@ -222,7 +259,7 @@ rule rpkm:
         norm.to_parquet(output[0])
 
 
-rule zscore_tpm:
+rule zscore:
     input: 'data/{fname}.parquet'
     output: 'data/zscore_{fname}.parquet'
     run:
@@ -231,20 +268,6 @@ rule zscore_tpm:
         df = pd.read_parquet(input[0])
         norm = zscore(df)
         norm.to_parquet(output[0])
-
-
-rule tpm_by_cluster:
-    input:
-        tpm=rules.tpm.output,
-        cluster=rules.split_clusters.output.res4
-    output: 'data/tpm.res.0.4.parquet'
-    run:
-        import pandas as pd
-        tpm = pd.read_parquet('../scrnaseq-wf/data/tpm.parquet')
-        clusters = pd.read_parquet('../scrnaseq-wf/data/clusters.res.0.4.parquet')
-        tpm_cluster = tpm.T.join(clusters).groupby('cluster').sum().T
-        tpm_cluster.columns = [f'clus{x}' for x in tpm_cluster.columns]
-        tpm_cluster.to_parquet(output[0])
 
 
 rule raw_by_cluster:
@@ -258,4 +281,19 @@ rule raw_by_cluster:
         clusters = pd.read_parquet(input.cluster)
         raw_cluster = raw.T.join(clusters).groupby('cluster').sum().T
         raw_cluster.columns = [f'clus{x}' for x in raw_cluster.columns]
+        raw_cluster.index.name = 'FBgn'
         raw_cluster.to_parquet(output[0])
+
+
+rule tpm_by_cluster:
+    input: rules.raw_by_cluster.output[0], rules.gene_lengths.output[0]
+    output: 'data/tpm.res.0.4.parquet'
+    run:
+        import pandas as pd
+        from larval_gonad_ovary.normalization import tpm
+        raw = pd.read_parquet(input[0])
+        gene_lengths = pd.read_parquet(input[1]).reindex(raw.index).gene_length
+        norm = tpm(raw, gene_lengths)
+        norm.to_parquet(output[0])
+
+
