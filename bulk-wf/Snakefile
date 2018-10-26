@@ -37,14 +37,13 @@ final_targets = utils.flatten((
     utils.flatten(c.targets['featurecounts_intergenic']) +
     utils.flatten(c.targets['rrna']),
     utils.flatten(c.targets['markduplicates']),
-#     utils.flatten(c.targets['salmon']),
     utils.flatten(c.targets['dupradar']),
     utils.flatten(c.targets['preseq']),
     utils.flatten(c.targets['rseqc']),
     utils.flatten(c.targets['collectrnaseqmetrics']),
     utils.flatten(c.targets['bigwig']),
 #     utils.flatten(c.targets['downstream']),
-    'data/gene_lengths.tsv',
+    c.targets['gene_lens'],
 ))
 
 if 'merged_bigwigs' in config:
@@ -68,7 +67,7 @@ if 'orig_filename' in c.sampletable.columns:
         Symlinks files over from original filename
         """
         input: [_st.loc[sample, 'orig_filename']  for sample in _st.index ]
-        output: [c.patterns['fastq'].format(sample=sample, sample_dir='data/rnaseq_samples') for sample in _st.index]
+        output: [c.patterns['fastq'].format(sample=sample) for sample in _st.index]
         resources:
             mem_gb = lambda wildcards, attempt: attempt * 1,
             time_hr = lambda wildcards, attempt: attempt * 1
@@ -128,10 +127,10 @@ rule fastqc:
     """
     Run FastQC
     """
-    input: 'data/rnaseq_samples/{sample}/{sample}{suffix}'
+    input: '../output/bulk-wf/rnaseq_samples/{sample}/{sample}{suffix}'
     output:
-        html='data/rnaseq_samples/{sample}/fastqc/{sample}{suffix}_fastqc.html',
-        zip='data/rnaseq_samples/{sample}/fastqc/{sample}{suffix}_fastqc.zip',
+        html='../output/bulk-wf/rnaseq_samples/{sample}/fastqc/{sample}{suffix}_fastqc.html',
+        zip='../output/bulk-wf/rnaseq_samples/{sample}/fastqc/{sample}{suffix}_fastqc.zip',
     resources:
         mem_gb = lambda wildcards, attempt: attempt * 1,
         time_hr = lambda wildcards, attempt: attempt * 2
@@ -199,9 +198,9 @@ rule fastq_count:
     Count reads in a FASTQ file
     """
     input:
-        fastq='data/rnaseq_samples/{sample}/{sample}{suffix}.fastq.gz'
+        fastq='../output/bulk-wf/rnaseq_samples/{sample}/{sample}{suffix}.fastq.gz'
     output:
-        count='data/rnaseq_samples/{sample}/{sample}{suffix}.fastq.gz.libsize'
+        count='../output/bulk-wf/rnaseq_samples/{sample}/{sample}{suffix}.fastq.gz.libsize'
     resources:
         mem_gb = lambda wildcards, attempt: attempt * 1,
         time_hr = lambda wildcards, attempt: attempt * 2
@@ -214,9 +213,9 @@ rule bam_count:
     Count reads in a BAM file
     """
     input:
-        bam='data/rnaseq_samples/{sample}/{suffix}.bam'
+        bam='../output/bulk-wf/rnaseq_samples/{sample}/{suffix}.bam'
     output:
-        count='data/rnaseq_samples/{sample}/{suffix}.bam.libsize'
+        count='../output/bulk-wf/rnaseq_samples/{sample}/{suffix}.bam.libsize'
     resources:
         mem_gb = lambda wildcards, attempt: attempt * 1,
         time_hr = lambda wildcards, attempt: attempt * 2
@@ -274,9 +273,9 @@ rule featurecounts:
         annotation=c.refdict[c.organism][config['gtf']['tag']]['gtf'],
         bam=rules.hisat2.output
     output:
-        counts='data/rnaseq_samples/{sample}/{sample}.cutadapt.bam.featurecounts.{stranded,s0|s1|s2}.txt'
+        counts='../output/bulk-wf/rnaseq_samples/{sample}/{sample}.cutadapt.bam.featurecounts.{stranded,s0|s1|s2}.txt'
     log:
-        'data/rnaseq_samples/{sample}/{sample}.cutadapt.bam.featurecounts.{stranded}.txt.log'
+        '../output/bulk-wf/rnaseq_samples/{sample}/{sample}.cutadapt.bam.featurecounts.{stranded}.txt.log'
     resources:
         mem_gb = lambda wildcards, attempt: attempt * 1,
         time_hr = lambda wildcards, attempt: attempt * 2
@@ -529,7 +528,7 @@ rule dupRadar:
         dataframe=c.patterns['dupradar']['dataframe'],
         model=c.patterns['dupradar']['model'],
         curve=c.patterns['dupradar']['curve'],
-    log: 'data/rnaseq_samples/{sample}/dupradar/dupradar.log'
+    log: c.targets['dupradar']['log']
     resources:
         mem_gb = lambda wildcards, attempt: attempt * 1,
         time_hr = lambda wildcards, attempt: attempt * 2
@@ -724,9 +723,9 @@ rule featurecounts_intergenic:
         annotation=c.patterns['intergenic']['gtf'],
         bam=rules.hisat2.output
     output:
-        counts='data/rnaseq_samples/{sample}/{sample}.cutadapt.bam.featurecounts.intergenic.{stranded,s0|s1|s2}.txt'
+        counts='../output/bulk-wf/rnaseq_samples/{sample}/{sample}.cutadapt.bam.featurecounts.intergenic.{stranded,s0|s1|s2}.txt'
     log:
-        'data/rnaseq_samples/{sample}/{sample}.cutadapt.bam.featurecounts.intergenic.{stranded}.txt.log'
+        '../output/bulk-wf/rnaseq_samples/{sample}/{sample}.cutadapt.bam.featurecounts.intergenic.{stranded}.txt.log'
     resources:
         mem_gb = lambda wildcards, attempt: attempt * 1,
         time_hr = lambda wildcards, attempt: attempt * 2
@@ -775,8 +774,8 @@ if 'merged_bigwigs' in config:
 
 
 rule gene_lengths:
-    input: 'data/rnaseq_samples/A5_OF/A5_OF.cutadapt.bam.featurecounts.s1.txt'
-    output: 'data/gene_lengths.tsv'
+    input: '../output/bulk-wf/rnaseq_samples/A5_OF/A5_OF.cutadapt.bam.featurecounts.s1.txt'
+    output: c.targets['gene_lens']
     run:
         import pandas as pd
         df = pd.read_csv(input[0], comment='#', sep='\t', usecols=[0, 5])
@@ -787,13 +786,13 @@ rule gene_lengths:
 
 rule aggregate_feature_counts:
     input: c.targets['featurecounts']['s2']
-    output: 'data/aggregation/featurecounts.parquet'
+    output: c.targets['parquet']['gene']
     script: 'scripts/aggregate_feature_counts.py'
 
 
 rule tpm:
     input: rules.aggregate_feature_counts.output[0], rules.gene_lengths.output
-    output: 'data/tpm.parquet'
+    output: c.targets['parquet']['tpm']
     run:
         import pandas as pd
         from larval_gonad_ovary.normalization import tpm

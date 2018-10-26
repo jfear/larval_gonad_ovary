@@ -171,14 +171,14 @@ rule scrnaseq_rmarkdown:
         mtx1=utils.flatten(c.targets['cellranger_force']['filtered_h5']),
         rmd='scripts/scrnaseq_combine_force.Rmd',
     output:
-        html='scripts/scrnaseq_combine_force.html',
-        raw='data/scrnaseq_combine_force/raw.tsv',
-        norm='data/scrnaseq_combine_force/normalized_read_counts.tsv',
-        clusters='data/scrnaseq_combine_force/clusters.tsv',
-        metadata='data/scrnaseq_combine_force/metadata.tsv',
-        biomarkers4='data/scrnaseq_combine_force/biomarkers_res.0.4.tsv',
-        biomarkers6='data/scrnaseq_combine_force/biomarkers_res.0.6.tsv',
-        biomarkers1='data/scrnaseq_combine_force/biomarkers_res.1.tsv',
+        html=c.targets['seurat']['html'],
+        raw=c.targets['seurat']['raw'],
+        norm=c.targets['seurat']['norm'],
+        clusters=c.targets['seurat']['clusters'],
+        metadata=c.targets['seurat']['metadata'],
+        biomarkers4=c.targets['seurat']['biomarkers4'],
+        biomarkers6=c.targets['seurat']['biomarkers6'],
+        biomarkers1=c.targets['seurat']['biomarkers1'],
     shell:
         'Rscript -e '
         '''"rmarkdown::render('{input.rmd}', 'knitrBootstrap::bootstrap_document')"'''
@@ -187,8 +187,8 @@ rule scrnaseq_rmarkdown:
 ruleorder: split_clusters > tsv_to_parquet
 
 rule tsv_to_parquet:
-    input: 'data/scrnaseq_combine_force/{fname}.tsv'
-    output: 'data/{fname}.parquet'
+    input: '../output/scrnaseq-wf/scrnaseq_combine_force/{fname}.tsv'
+    output: '../output/scrnaseq-wf/{fname}.parquet'
     run:
         import pandas as pd
         df = pd.read_csv(input[0], sep='\t', index_col=0)
@@ -196,29 +196,16 @@ rule tsv_to_parquet:
 
 
 rule split_clusters:
-    input: 'data/clusters.parquet'
+    input: c.targets['parquet']['clusters']
     output:
-        res4='data/clusters.res.0.4.parquet',
-        res6='data/clusters.res.0.6.parquet',
-    run:
-        import pandas as pd
-        df = pd.read_parquet(input[0])
-
-        def pop(df, res):
-            res = df[res]
-            res.name = 'cluster'
-            return res.to_frame()
-
-        res4 = pop(df, 'res.0.4')
-        res4.to_parquet(output.res4)
-
-        res6 = pop(df, 'res.0.6')
-        res6.to_parquet(output.res6)
+        res4=c.targets['parquet']['clusters4'],
+        res6=c.targets['parquet']['clusters6'],
+    script: 'scripts/split_clusters.py'
 
 
 rule gene_lengths:
-    input: '../bulk-wf/data/gene_lengths.tsv'
-    output: 'data/gene_lengths.parquet'
+    input: '../output/bulk-wf/gene_lengths.tsv'
+    output: c.patterns['parquet']['gene_lens']
     run:
         import pandas as pd
         df = pd.read_csv(input[0], sep='\t', index_col=0)
@@ -226,74 +213,40 @@ rule gene_lengths:
 
 
 rule cpm:
-    input: 'data/raw.parquet'
-    output: 'data/cpm.parquet'
-    run:
-        from larval_gonad_ovary.normalization import cpm
-        raw = pd.read_parquet(input[0])
-        norm = cpm(raw)
-        norm.to_parquet(output[0])
+    input: c.targets['parquet']['raw']
+    output: c.targets['normalized']['cpm']
+    script: 'scripts/cpm.py'
 
 
 rule tpm:
-    input: 'data/raw.parquet', rules.gene_lengths.output
-    output: 'data/tpm.parquet'
-    run:
-        import pandas as pd
-        from larval_gonad_ovary.normalization import tpm
-        raw = pd.read_parquet(input[0])
-        gene_lengths = pd.read_parquet(input[1]).reindex(raw.index).gene_length
-        norm = tpm(raw, gene_lengths)
-        norm.to_parquet(output[0])
+    input: c.targets['parquet']['raw'], rules.gene_lengths.output
+    output: c.targets['normalized']['tpm']
+    script: 'scripts/tpm.py'
 
 
 rule rpkm:
-    input: 'data/raw.parquet', rules.gene_lengths.output
-    output: 'data/rpkm.parquet'
-    run:
-        import pandas as pd
-        from larval_gonad_ovary.normalization import rpkm
-        raw = pd.read_parquet(input[0])
-        gene_lengths = pd.read_parquet(input[1]).reindex(raw.index).gene_length
-        norm = rpkm(raw, gene_lengths)
-        norm.to_parquet(output[0])
+    input: c.targets['parquet']['raw'], rules.gene_lengths.output
+    output: c.targets['normalized']['rpkm']
+    script: 'scripts/rpkm.py'
 
 
-rule zscore:
-    input: 'data/{fname}.parquet'
-    output: 'data/zscore_{fname}.parquet'
-    run:
-        import pandas as pd
-        from larval_gonad_ovary.normalization import zscore
-        df = pd.read_parquet(input[0])
-        norm = zscore(df)
-        norm.to_parquet(output[0])
+rule zscore_tpm:
+    input: '../output/scrnaseq-wf/{fname}.parquet'
+    output: '../output/scrnaseq-wf/zscore_{fname}.parquet'
+    script: 'scripts/zscore_tpm.py'
+
+
+rule tpm_by_cluster:
+    input:
+        tpm=rules.tpm.output,
+        cluster=rules.split_clusters.output.res4
+    output: c.targets['normalized']['tpm_res4']
+    script: 'scripts/tpm_by_cluster.py'
 
 
 rule raw_by_cluster:
     input:
-        raw='data/raw.parquet',
+        raw=c.targets['parquet']['raw'],
         cluster=rules.split_clusters.output.res4
-    output: 'data/raw.res.0.4.parquet'
-    run:
-        import pandas as pd
-        raw = pd.read_parquet(input.raw)
-        clusters = pd.read_parquet(input.cluster)
-        raw_cluster = raw.T.join(clusters).groupby('cluster').sum().T
-        raw_cluster.columns = [f'clus{x}' for x in raw_cluster.columns]
-        raw_cluster.index.name = 'FBgn'
-        raw_cluster.to_parquet(output[0])
-
-
-rule tpm_by_cluster:
-    input: rules.raw_by_cluster.output[0], rules.gene_lengths.output[0]
-    output: 'data/tpm.res.0.4.parquet'
-    run:
-        import pandas as pd
-        from larval_gonad_ovary.normalization import tpm
-        raw = pd.read_parquet(input[0])
-        gene_lengths = pd.read_parquet(input[1]).reindex(raw.index).gene_length
-        norm = tpm(raw, gene_lengths)
-        norm.to_parquet(output[0])
-
-
+    output: c.targets['normalized']['raw_res4']
+    script: 'scripts/raw_by_cluster.py'

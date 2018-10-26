@@ -9,3 +9,5 @@ pysam
 tables
 scipy
 seaborn
+fastparquet
+python-snappy
