@@ -8,7 +8,7 @@ from larval_gonad_ovary.io import cellranger_counts
 
 
 def dump_counts(name):
-    fname = f'../scrnaseq-wf/data/scrnaseq_samples/{name}/outs/raw_gene_bc_matrices_h5.h5'
+    fname = f'../output/scrnaseq-wf/scrnaseq_samples/{name}/outs/raw_gene_bc_matrices_h5.h5'
     df = cellranger_counts(fname)
 
     #logger.info(f'Wirting {name} full matrix')

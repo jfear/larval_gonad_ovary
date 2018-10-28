@@ -27,7 +27,7 @@ final_targets = utils.flatten((
     utils.flatten(c.targets['parquet']),
     utils.flatten(c.targets['normalized']),
     'scripts/scrnaseq_combine_force.html',
-    'data/scrnaseq_samples/ovary_force.csv'
+    '../output/scrnaseq-wf/scrnaseq_samples/ovary_force.csv'
 ))
 
 rule targets:
@@ -131,13 +131,13 @@ rule cellranger_force:
 
 
 rule cellranger_agg_csv:
-    input: expand('data/scrnaseq_samples/{sample}_force/outs/molecule_info.h5', sample=['ovary1', 'ovary2', 'ovary3'])
-    output: 'data/scrnaseq_samples/ovary_force.csv'
+    input: expand('../output/scrnaseq-wf/scrnaseq_samples/{sample}_force/outs/molecule_info.h5', sample=['ovary1', 'ovary2', 'ovary3'])
+    output: '../output/scrnaseq-wf/scrnaseq_samples/ovary_force.csv'
     run:
         dat = dict(library_id=['ovary1_force', 'ovary2_force', 'ovary3_force'],
-                   molecule_h5=['data/scrnaseq_samples/ovary1_force/outs/molecule_info.h5',
-                                'data/scrnaseq_samples/ovary2_force/outs/molecule_info.h5',
-                                'data/scrnaseq_samples/ovary3_force/outs/molecule_info.h5',
+                   molecule_h5=['../output/scrnaseq-wf/scrnaseq_samples/ovary1_force/outs/molecule_info.h5',
+                                '../output/scrnaseq-wf/scrnaseq_samples/ovary2_force/outs/molecule_info.h5',
+                                '../output/scrnaseq-wf/scrnaseq_samples/ovary3_force/outs/molecule_info.h5',
                                ])
 
         df = pd.DataFrame(dat)
@@ -146,14 +146,14 @@ rule cellranger_agg_csv:
 
 rule cellranger_aggr:
     input: rules.cellranger_agg_csv.output[0]
-    output: 'data/scrnaseq_samples/ovary_force_agg/outs/filtered_gene_bc_matrices_h5.h5'
+    output: '../output/scrnaseq-wf/scrnaseq_samples/ovary_force_agg/outs/filtered_gene_bc_matrices_h5.h5'
     threads: 2
     resources:
         mem_gb = lambda wildcards, attempt: attempt * 6,
         time_hr = lambda wildcards, attempt: attempt * 4
     shell:
         'module load cellranger/2.1.1 && '
-        'cd data/scrnaseq_samples && '
+        'cd ../output/scrnaseq-wf/scrnaseq_samples && '
         'rm -rf ovary_force_agg &&'
         'cellranger aggr '
         '--id=ovary_force_agg '

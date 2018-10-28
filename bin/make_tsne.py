@@ -73,7 +73,7 @@ if __name__ == '__main__':
     FIGS = '../output/figures/combined_tsne_force_png'
     Path(FIGS).mkdir(exist_ok=True)
 
-    DAT = '../scrnaseq-wf/data/scrnaseq_combine_force'
+    DAT = '../output/scrnaseq-wf/scrnaseq_combine_force'
     tsne = pd.read_csv(Path(DAT, 'tsne.tsv'), sep='\t')
     norm = pd.read_csv(Path(DAT, 'normalized_read_counts.tsv'), sep='\t')
     data = tsne.join(norm.T)
