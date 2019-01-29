@@ -3,7 +3,7 @@
 
 from setuptools import setup
 
-requirements = [i.strip() for i in open('lib_requirements.txt').readlines()]
+# requirements = [i.strip() for i in open('lib_requirements.txt').readlines()]
 
 setup(
     name='larval_gonad_ovary',
@@ -13,6 +13,6 @@ setup(
     author_email='justin.m.fear@gmail.com',
     url='https://github.com/jfear/larval_gonad_ovary',
     packages=['larval_gonad_ovary'],
-    install_requires=requirements,
+#     install_requires=requirements,
     license="MIT license",
 )

@@ -1,0 +1,4 @@
+samplename	orig_filename	group	sample
+ovary1	../data/singleCellSeqData/SV_2_10X_Ov	ovary	SV_2_10X_Ov
+ovary2	../data/singleCellSeqData/SV_4_10X_Ov	ovary	SV-4-10X-Ov-2
+ovary3	../data/singleCellSeqData/SV_6_10X_Ov	ovary	SV-6-10X-Ov-3
